@@ -1,21 +1,9 @@
-# How to install ERPNext on linux/mac using Frappe_docker ?
 
-step1: clone the repo
-
-```
-git clone https://github.com/frappe/frappe_docker
-```
-
-step2: add platform: linux/amd64 to all services in the /pwd.yaml
-
-here is the update pwd.yml file
-
-```yml
 version: "3"
 
 services:
   backend:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -25,7 +13,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   configurator:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -33,7 +21,6 @@ services:
     entrypoint:
       - bash
       - -c
-    # add redis_socketio for backward compatibility
     command:
       - >
         ls -1 apps > sites/apps.txt;
@@ -54,7 +41,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   create-site:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -71,9 +58,7 @@ services:
         wait-for-it -t 120 redis-cache:6379;
         wait-for-it -t 120 redis-queue:6379;
         export start=`date +%s`;
-        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] && \
-          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] && \
-          [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
+        until [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".db_host // empty"` ]] &&           [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_cache // empty"` ]] &&           [[ -n `grep -hs ^ sites/common_site_config.json | jq -r ".redis_queue // empty"` ]];
         do
           echo "Waiting for sites/common_site_config.json to be created";
           sleep 5;
@@ -83,10 +68,29 @@ services:
           fi
         done;
         echo "sites/common_site_config.json found";
-        bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin --install-app erpnext --set-default frontend;
+
+        if [[ ! -f /home/frappe/frappe-bench/sites/apps.txt ]]; then
+          echo "File /home/frappe/frappe-bench/sites/apps.txt does not exist!"
+          exit 1
+        fi
+
+        BENCH_CMD="bench new-site --no-mariadb-socket --admin-password=admin --db-root-password=admin"
+
+        while IFS= read -r app || [[ -n "$$app" ]]; do
+          if [[ -n "$$app" ]]; then
+            BENCH_CMD+=" --install-app $$app"
+          fi
+        done < /home/frappe/frappe-bench/sites/apps.txt
+
+        BENCH_CMD+=" --set-default ${SITE_NAME}"
+
+        echo $$BENCH_CMD;
+        eval "$$BENCH_CMD";
+
 
   db:
     image: mariadb:10.6
+    platform: linux/amd64
     platform: linux/amd64
     healthcheck:
       test: mysqladmin ping -h localhost --password=admin
@@ -106,7 +110,7 @@ services:
       - db-data:/var/lib/mysql
 
   frontend:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     depends_on:
       - websocket
@@ -117,7 +121,7 @@ services:
       - nginx-entrypoint.sh
     environment:
       BACKEND: backend:8000
-      FRAPPE_SITE_NAME_HEADER: frontend
+      FRAPPE_SITE_NAME_HEADER: ${SITE_NAME}
       SOCKETIO: websocket:9000
       UPSTREAM_REAL_IP_ADDRESS: 127.0.0.1
       UPSTREAM_REAL_IP_HEADER: X-Forwarded-For
@@ -131,7 +135,7 @@ services:
       - "8080:8080"
 
   queue-long:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -146,7 +150,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   queue-short:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -163,6 +167,7 @@ services:
   redis-queue:
     image: redis:6.2-alpine
     platform: linux/amd64
+    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -172,6 +177,7 @@ services:
   redis-cache:
     image: redis:6.2-alpine
     platform: linux/amd64
+    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -179,7 +185,7 @@ services:
       - redis-cache-data:/data
 
   scheduler:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -192,7 +198,7 @@ services:
       - logs:/home/frappe/frappe-bench/logs
 
   websocket:
-    image: frappe/erpnext:v15
+    image: dopewevmond/custom-erpnext-healthcare:v1
     platform: linux/amd64
     deploy:
       restart_policy:
@@ -210,20 +216,3 @@ volumes:
   redis-cache-data:
   sites:
   logs:
-```
-
-step3: run the docker
-
-```
-cd frappe_docker
-```
-
-```
-docker-compose -f ./pwd.yml up
-```
-
----
-
-Wait for couple of minutes.
-
-Open localhost:8080
