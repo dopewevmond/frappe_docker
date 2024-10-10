@@ -91,6 +91,7 @@ services:
   db:
     image: mariadb:10.6
     platform: linux/amd64
+    platform: linux/amd64
     healthcheck:
       test: mysqladmin ping -h localhost --password=admin
       interval: 1s
@@ -166,6 +167,7 @@ services:
   redis-queue:
     image: redis:6.2-alpine
     platform: linux/amd64
+    platform: linux/amd64
     deploy:
       restart_policy:
         condition: on-failure
@@ -174,6 +176,7 @@ services:
 
   redis-cache:
     image: redis:6.2-alpine
+    platform: linux/amd64
     platform: linux/amd64
     deploy:
       restart_policy:
